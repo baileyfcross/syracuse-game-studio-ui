@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
             <p class="section-eyebrow">ENTER THE UNKNOWN</p>
             <h2>ONE MORE DOOR.<br /><em>ONE MORE DISCOVERY.</em></h2>
             <div class="intro-bottom">
-              <p>Astral Ruin is a space-themed, top-down dungeon crawler in development at SyracuseGameStudio. Navigate a branching path of rooms, make your way forward, and master responsive directional combat.</p>
+              <p>Astral Ruin is a space-themed, top-down dungeon crawler in development at SyracuseGameStudio. Navigate an old derelict spaceship, make your way forward, and find your way home.</p>
               <div class="project-badge"><div class="badge-orbit"><span>AR</span></div><span>PROJECT<br />ASTRAL RUIN</span></div>
             </div>
           </div>
@@ -154,6 +154,23 @@ onBeforeUnmount(() => {
       <section id="studio" class="studio-section section-padding">
         <div class="container studio-layout">
           <div class="studio-intro"><p class="section-eyebrow">THE PEOPLE BEHIND THE PIXELS</p><h2>INDEPENDENT<br />BY <em>DESIGN.</em></h2><p>We are SyracuseGameStudio. We're creating games with an emphasis on meaningful mechanics, a distinctive atmosphere, and the joy of discovering what comes next.</p><a href="#updates" class="text-link">SEE WHAT WE'RE BUILDING <span aria-hidden="true">↗</span></a></div>
+          <div class="studio-people">
+            <div class="studio-person">
+              <img src="/profile-pics/b-cross.jpg" alt="Team Member 1" loading="lazy" />
+              <span class="studio-person-name">Bailey Cross</span>
+              <span class="studio-person-role">Lead Developer</span>
+            </div>
+            <div class="studio-person">
+              <img src="/profile-pics/default-icon.jpg" alt="Team Member 2" loading="lazy" />
+              <span class="studio-person-name">Nate P.</span>
+              <span class="studio-person-role">Lead Developer</span>
+            </div>
+            <div class="studio-person">
+              <img src="/profile-pics/default-icon.jpg" alt="Team Member 3" loading="lazy" />
+              <span class="studio-person-name">Logan W.</span>
+              <span class="studio-person-role">Art Designer</span>
+            </div>
+          </div>
           <div class="studio-graphic" aria-hidden="true"><div class="studio-square studio-square-a"></div><div class="studio-square studio-square-b"></div><div class="studio-square studio-square-c"></div><div class="studio-graphic-center">SGS<span>®</span></div><div class="studio-graphic-bottom">SYRACUSE / GAME / STUDIO</div></div>
         </div>
       </section>

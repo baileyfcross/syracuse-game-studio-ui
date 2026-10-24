@@ -137,6 +137,12 @@ h2 em, .statement-content em { font-style: normal; color: var(--lavender); }
 .studio-intro > p:not(.section-eyebrow) { max-width:580px; font-size:18px; color:#b1b2c8; line-height:1.85; margin-top:37px; }
 .text-link { display:inline-flex; align-items:center; gap:30px; padding-bottom:11px; border-bottom:1px solid var(--lavender); color:#eae5ff; font-size:19px; font-weight:600; letter-spacing:.08em; margin-top:36px; }
 .text-link span { font-size:23px; color:var(--aqua); }
+.studio-people { grid-column:1 / -1; grid-row:2; display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+.studio-person { display:flex; flex-direction:column; align-items:center; text-align:center; padding:28px 20px; background:linear-gradient(135deg,#111528,#0b0e1d); border:1px solid var(--border); transition:border-color .25s, transform .25s; }
+.studio-person:hover { border-color:rgba(174,160,255,.45); transform:translateY(-4px); }
+.studio-person img { width:120px; height:120px; object-fit:cover; border-radius:50%; border:2px solid rgba(174,160,255,.35); margin-bottom:20px; }
+.studio-person-name { font:700 24px 'Barlow Condensed', Impact, sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#d5ceff; }
+.studio-person-role { font:600 15px 'Barlow Condensed', Impact, sans-serif; letter-spacing:.23em; text-transform:uppercase; color:#9f9dbd; margin-top:6px; }
 .studio-graphic { aspect-ratio:1; position:relative; display:grid; place-items:center; background:radial-gradient(circle at center,rgba(101,86,169,.22),transparent 62%),linear-gradient(135deg,#111528,#0b0e1d); border:1px solid var(--border); overflow:hidden; }
 .studio-graphic::before,.studio-graphic::after { content:""; position:absolute; width:85%; height:85%; border:1px solid rgba(183,178,235,.08); border-radius:50%; }
 .studio-graphic::after { width:60%; height:60%; }
@@ -241,6 +247,7 @@ h2 em, .statement-content em { font-style: normal; color: var(--lavender); }
   .studio-layout { grid-template-columns:1fr; gap:43px; }
   .studio-intro > p:not(.section-eyebrow) { font-size:16px; margin-top:24px; }
   .studio-graphic { max-width:550px; width:100%; }
+  .studio-people { grid-row:auto; grid-template-columns:1fr; gap:16px; }
   .updates-header { flex-direction:column; align-items:flex-start; gap:22px; margin-bottom:30px; }
   .updates-panel { grid-template-columns:1fr; }
   .updates-panel-left { padding:35px 25px; }
