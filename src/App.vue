@@ -63,6 +63,7 @@ onBeforeUnmount(() => {
           <a href="#game" @click="closeMenu">THE GAME</a>
           <a href="#experience" @click="closeMenu">THE EXPERIENCE</a>
           <a href="#studio" @click="closeMenu">OUR STUDIO</a>
+          <a href="/AstralRuinShortStory" @click="closeMenu">SHORT STORY</a>
           <a href="#updates" class="nav-special" @click="closeMenu">DEVELOPMENT <span aria-hidden="true">↗</span></a>
         </nav>
       </div>
@@ -85,6 +86,7 @@ onBeforeUnmount(() => {
             <div class="hero-actions">
               <a class="button button-primary" href="#game">DISCOVER THE GAME <span aria-hidden="true">↗</span></a>
               <a class="button button-ghost" href="#studio">MEET THE STUDIO <span aria-hidden="true">↗</span></a>
+              <a class="hero-story-link" href="/AstralRuinShortStory">READ THE SHORT STORY <span aria-hidden="true">↗</span></a>
             </div>
           </div>
           <div class="hero-side-label" aria-hidden="true"><span>SGS / 001</span><span>ORBITAL ARCHIVE</span><span>EST. IN THE UNKNOWN</span></div>
