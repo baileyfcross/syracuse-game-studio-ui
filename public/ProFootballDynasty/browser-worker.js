@@ -22,7 +22,7 @@ class BrowserSimulationWorker {
 import { leagueDirectory, playerProfile } from './src/core/directory.js';
 import { NFL_2026 } from './src/config/nfl2026.js';
 import { createLeague, upgradeLeague, advanceLeague, stateSummary, signFreeAgent, cutPlayer, trade, startNextSeason, getGameDetail, tradeTargetSummary, franchiseTag, signPractice, releasePractice, promotePractice, elevatePractice, reservePlayer, returnFromReserve, claimPlayer, restructureContract, extendContract, tradePackage, openOffseason, openDraft, selectDraftProspect, simulateCpuDraft, finishDraft, negotiatePlayerOffer, negotiatePlayerExtension, submitTradeOffer, hireFranchiseStaff, prepareCpuWeek, setCampPlan, autoRosterCuts, startRegularSeason } from './src/core/engine.js';
-import { setGamePlan, setPracticeFocus, setStarter, spendSkillPoint } from './src/core/coaching.js';
+import { setGamePlan, setPracticeFocus, setStarter, setDepthOrder, autoSortDepth, spendSkillPoint } from './src/core/coaching.js';
 import {chooseCoachTeam, resignCoach, requireActiveCoach, requireManagedTeam, lockCoachTeam, evaluateCoachJob} from './src/core/career.js';
 import {preseasonLineup} from './src/core/calendar.js';
 import {changeSettings, editFranchise, editPerson, exportLeagueTemplate, importLeagueTemplate} from './src/core/customization.js';
@@ -187,7 +187,7 @@ async function handle(type,args={}){
   if(type==='rules')return {rules:NFL_2026};
   if(type==='directory')return leagueDirectory(state);
   if(type==='playerProfile')return playerProfile(state,args.playerId);
-  if(type==='state')return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
+  if(type==='state')return stateSummary(state,args.teamId||state.coachCareer?.teamId||state.coachCareer?.lastTeamId||'T01');
   if(type==='gameDetail')return getGameDetail(state,args.gameId);
   if(type==='tradeTarget')return tradeTargetSummary(state,args.teamId);
   if(type==='coachSelect'){
@@ -255,6 +255,8 @@ async function handle(type,args={}){
   else if(type==='gameplan')setGamePlan(ownedTeam(args.teamId),{offense:args.offense,defense:args.defense,tempo:args.tempo});
   else if(type==='practice')setPracticeFocus(ownedTeam(args.teamId),args.focus);
   else if(type==='starter')setStarter(ownedTeam(args.teamId),args.position,Number(args.slot),args.playerId);
+  else if(type==='depthReorder')setDepthOrder(ownedTeam(args.teamId),args.position,args.ids);
+  else if(type==='depthAutoSort')autoSortDepth(ownedTeam(args.teamId),args.position);
   else if(type==='coachSkill')spendSkillPoint(ownedTeam(args.teamId),args.skill);
   else if(type==='hireStaff')hireFranchiseStaff(state,args.teamId,args.role,args.candidateId);
   else if(type==='scout')scoutProspect(state,args.teamId,args.prospectId);
@@ -262,7 +264,7 @@ async function handle(type,args={}){
   else if(type==='bookmarkProspect')toggleProspectBookmark(state,args.teamId,args.prospectId);
   else throw Error(`Unknown action: ${type}`);
   if(['nextSeason','openOffseason','beginDraft','draftAdvance','autoDraftRemaining','finalizeCutdown'].includes(type)) lockCoachTeam(state);
-  await save();return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
+  await save();return stateSummary(state,args.viewTeamId||state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
 }
 // Register immediately, before opening IndexedDB. Messages arriving during
 // initialization are kept in-order and never lost.

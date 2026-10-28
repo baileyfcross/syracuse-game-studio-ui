@@ -1,5 +1,5 @@
 // Shared UI: built from web/app.js. Do not edit the generated file.
-import {gameFetch} from './browser-api.js?v=5483a3dec7ce';
+import {gameFetch} from './browser-api.js?v=e5d43ee72f36';
 const fetch = gameFetch;
 const el=document.querySelector('#app');
 const teamSelect=document.querySelector('#team-select');
@@ -8,7 +8,28 @@ const toast=document.querySelector('#toast');
 let data=null,tab='overview',busy=false,conference='AFC';
 let selectedGame=null, statCategory='passYards',statScope='regular';
 let legacySection='news',legacyCategory='passYards',saveSlots=[];
-let teamId='T01'; // The assigned franchise comes from the saved coaching career, never localStorage.
+let depthGroup='Offense',depthPosition='QB',depthSelectedId=null,depthCompareId=null;
+let teamId='T01'; // Selected franchise for read-only browsing, independent of career assignment.
+const managedTeamId=()=>data?.coachCareer?.status==='active'?data.coachCareer.teamId:null;
+const viewingOwnTeam=()=>Boolean(managedTeamId()&&managedTeamId()===teamId);
+const TEAM_EDIT_ACTIONS=new Set(['editFranchise','editPerson','campPlan','autoCuts','draftPick',
+  'negotiateFreeAgent','negotiateExtension','proposeTrade','sign','cut','franchiseTag','trade',
+  'signPractice','releasePractice','promotePractice','elevatePractice','reserve','activateIR',
+  'claimWaiver','restructure','extend','tradePackage','tactics','gameplan','practice','starter',
+  'coachSkill','hireStaff','scout','scoutingFocus','bookmarkProspect','importLeagueTemplate','depthReorder','depthAutoSort']);
+// Controls that change the currently viewed franchise. Career/save navigation and
+// league progression remain available even when watching another team.
+const TEAM_EDIT_CONTROLS=[
+  '[data-custom-franchise]','[data-edit-person]','[data-import-league-template]',
+  '[data-save-camp]','[data-auto-cuts]','[data-draft-select]',
+  '[data-cut]','[data-ps-sign]','[data-ps-release]','[data-promote]','[data-elevate]',
+  '[data-ir]','[data-activate-ir]','[data-waiver]','[data-tag]','[data-restructure]',
+  '[data-extend]','[data-trade-execute]','[data-staff-hire]',
+  '[data-save-weekly-plan]','[data-save-weekly-tactics]','[data-save-plan]',
+  '[data-save-tactics]','[data-save-practice]','[data-save-scout-focus]',
+  '[data-skill]','[data-scout]','[data-prospect-bookmark]','[data-sign]',
+  '[data-depth-pos]','[data-depth-move]','[data-depth-autosort]','[data-depth-promote]'
+];
 let tradeTarget=null, tradePartnerId='T02';
 const money=n=>'$'+(n/1_000_000).toFixed(1)+'M';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -55,11 +76,35 @@ careerForm.addEventListener('submit',async event=>{
 
 async function api(action,args={}){
   const endpoint=action==='state'||action==='rules'?`/api/${action}?team=${encodeURIComponent(teamId)}`:'/api/action';
-  const r=await fetch(endpoint,action==='state'||action==='rules'?{}:{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:action,args:{...args,teamId}})});
+  // Mutations always target the managed team, regardless of the team being viewed.
+  const requestArgs={...args,teamId:managedTeamId()||teamId,viewTeamId:teamId};
+  const r=await fetch(endpoint,action==='state'||action==='rules'?{}:{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:action,args:requestArgs})});
   const x=await r.json();if(!r.ok)throw Error(x.error||'Request failed');return x;
 }
-async function refresh(){data=await api('state');directoryCache=null;render();}
+async function refresh(){
+  const isFirstLoad=!data;
+  data=await api('state');
+  // Returning to the game defaults to your own franchise, not an arbitrary team.
+  if(isFirstLoad&&managedTeamId()&&teamId!==managedTeamId()){
+    teamId=managedTeamId();data=await api('state');
+  }
+  directoryCache=null;render();
+}
+async function viewFranchise(id){
+  if(!data?.teams.some(team=>team.id===id))return notification('Unknown franchise',true);
+  if(id===teamId)return;
+  const previous=teamId;teamId=id;
+  try {
+    data=await api('state');tradeTarget=null;selectedGame=null;directoryCache=null;
+    render();
+    if(tab==='tradecenter')await loadTradeTarget();
+    notification(viewingOwnTeam()?`Viewing your franchise: ${data.team.name}`:`Viewing ${data.team.name} (read only)`);
+  } catch(error){teamId=previous;notification(error.message,true);render();}
+}
 async function action(type,args={}){
+  if(TEAM_EDIT_ACTIONS.has(type)&&!viewingOwnTeam()){
+    notification('Read only: you can only manage your assigned franchise.',true);return;
+  }
   if(busy)return;busy=true;advance.disabled=true;
   try {data=await api(type,args);directoryCache=null;if(type==='advance'||type==='nextSeason'||type==='reset'||type==='finalizeCutdown')selectedGame=null;notification(type==='advance'?'Simulation completed':type==='nextSeason'?'New season started':type==='negotiateFreeAgent'||type==='negotiateExtension'?(data.lastNegotiation?.accepted?'Offer accepted':'Offer declined'):type==='proposeTrade'?(data.lastTradeDecision?.accepted?'Trade accepted':'Trade rejected'):'Transaction saved');render();}
   catch(e){notification(e.message,true);}finally{busy=false;render();}
@@ -184,13 +229,36 @@ function coaching(){
  </section>
  </div></div>`;
 }
+const DEPTH_GROUPS={Offense:['QB','RB','WR','TE','OL'],Defense:['DL','EDGE','LB','CB','S'],Specialists:['K','P','LS']};
+const DEPTH_NAMES={QB:'Quarterbacks',RB:'Running Backs',WR:'Wide Receivers',TE:'Tight Ends',OL:'Offensive Line',DL:'Defensive Line',EDGE:'Edge Rushers',LB:'Linebackers',CB:'Cornerbacks',S:'Safeties',K:'Kickers',P:'Punters',LS:'Long Snappers'};
+const DEPTH_METRICS={QB:[['PASS YDS','passYards'],['PASS TD','passTD'],['INT','interceptionsThrown']],RB:[['RUSH YDS','rushYards'],['RUSH TD','rushTD'],['ATT','rushAttempts']],WR:[['REC YDS','recYards'],['RECEPTIONS','receptions'],['REC TD','recTD']],TE:[['REC YDS','recYards'],['RECEPTIONS','receptions'],['REC TD','recTD']],OL:[['OFF SNAPS','offensiveSnaps']],DL:[['SACKS','sacks'],['TACKLES','tackles']],EDGE:[['SACKS','sacks'],['TACKLES','tackles']],LB:[['TACKLES','tackles'],['SACKS','sacks']],CB:[['INT','interceptions'],['TACKLES','tackles']],S:[['INT','interceptions'],['TACKLES','tackles']],K:[['FG MADE','fgMade']],P:[['PUNTS','punts']],LS:[['ST SNAPS','specialSnaps']]};
 function depth(){
  const t=data.team;
- return `${heading('Depth Chart','Choose starters by position. Injured players are automatically replaced during simulations.','STARTING LINEUP')}
- ${Object.entries(t.depthChart).map(([pos,ids])=>`<section class="panel"><h3 class="panel-title">${esc(pos)} <span class="panel-kicker">${ids.length} STARTERS</span></h3>
- ${ids.map((current,i)=>`<div class="split" style="margin:12px 0"><label class="muted" for="depth-${esc(pos)}-${i}">Starter ${i+1}</label><select class="form-select depth-select" id="depth-${esc(pos)}-${i}" data-depth-pos="${esc(pos)}" data-depth-slot="${i}">
- ${t.roster.filter(p=>p.position===pos).sort((a,b)=>b.rating-a.rating).map(p=>`<option value="${esc(p.id)}" ${current===p.id?'selected':''}>${esc(p.name)} · ${p.rating} OVR ${p.injuryWeeks?'· INJURED':''}</option>`).join('')}
- </select></div>`).join('')||'<div class="muted">No starting spots assigned</div>'}</section>`).join('')}`;
+ if(!DEPTH_GROUPS[depthGroup].includes(depthPosition)){depthPosition=DEPTH_GROUPS[depthGroup][0];depthSelectedId=null;depthCompareId=null;}
+ const pos=depthPosition,eligible=t.roster.filter(p=>p.position===pos);
+ const orderedIds=[...new Set([...(t.depthOrder?.[pos]||t.depthChart?.[pos]||[]),...eligible.slice().sort((a,b)=>b.rating-a.rating).map(p=>p.id)])];
+ const players=orderedIds.map(id=>eligible.find(p=>p.id===id)).filter(Boolean);
+ const count=t.depthChart?.[pos]?.length||0;
+ const selected=players.find(p=>p.id===depthSelectedId)||players[0];
+ if(selected)depthSelectedId=selected.id;
+ const compare=players.find(p=>p.id===depthCompareId&&p.id!==selected?.id)||null;
+ const canEdit=viewingOwnTeam();
+ const statsById=new Map((data.stats?.players||[]).map(p=>[p.id,p]));
+ function profile(p){
+  if(!p)return '<div class="depth-empty">Choose a player to see their details.</div>';
+  const s=statsById.get(p.id)||{};
+  const metrics=(DEPTH_METRICS[pos]||[]).map(([label,key])=>`<div><span>${esc(label)}</span><strong>${s[key]??0}</strong></div>`).join('');
+  return `<div class="depth-profile-top"><div class="depth-avatar" aria-hidden="true">${esc(p.name.split(' ').map(x=>x[0]).slice(0,2).join(''))}</div><div><div class="depth-profile-name">${esc(p.name)}</div><div class="muted">${esc(pos)} · Age ${p.age} · ${esc(p.injuryWeeks>0?'INJURED':'AVAILABLE')}</div></div><div class="depth-overall"><strong>${p.rating}</strong><span>OVR</span></div></div><div class="depth-mini-stats"><div><span>MORALE</span><strong>${p.morale??'-'}</strong></div><div><span>DURABILITY</span><strong>${p.development?.durability??'-'}</strong></div><div><span>WORK ETHIC</span><strong>${p.development?.workEthic??'-'}</strong></div>${metrics}</div>${p.injuryWeeks>0?`<p class="depth-injury">Injured: ${p.injuryWeeks} week(s) remaining. The simulation selects an available replacement.</p>`:''}<button class="player-link" data-player="${esc(p.id)}">Open full player profile ↗</button>`;
+ }
+ return `${heading('Depth Chart',`${t.name} · Rank players and choose your starters. Selections affect the game simulation.`,canEdit?'EDIT LINEUP':'VIEW ONLY')}
+ <div class="depth-groups">${Object.keys(DEPTH_GROUPS).map(group=>`<button type="button" class="depth-group ${depthGroup===group?'active':''}" data-depth-group="${group}" aria-pressed="${depthGroup===group}">${group}</button>`).join('')}</div>
+ <div class="depth-positions">${DEPTH_GROUPS[depthGroup].map(position=>`<button type="button" class="depth-pos ${pos===position?'active':''}" data-depth-position="${position}" aria-pressed="${pos===position}">${position}</button>`).join('')}</div>
+ <div class="depth-workspace"><section class="panel"><div class="depth-table-header"><div><h3 class="panel-title">${DEPTH_NAMES[pos]} <span class="panel-kicker">${players.length} ROSTERED</span></h3><p class="muted">${count} starting slot${count!==1?'s':''}. Dragging isn't required: select a player, then move them up or down.</p></div><button class="button button-small" data-depth-autosort ${canEdit?'':'disabled'}>Auto Sort (Healthy + OVR)</button></div>
+ <div class="table-wrap"><table class="data-table depth-table"><thead><tr><th scope="col">ORDER</th><th scope="col">PLAYER</th><th scope="col">OVR</th><th scope="col">AGE</th><th scope="col">MORALE</th><th scope="col">STATUS</th><th scope="col">MOVE</th></tr></thead><tbody>
+ ${players.map((p,i)=>`<tr class="depth-row ${selected?.id===p.id?'selected':''}" data-depth-player="${esc(p.id)}"><td><span class="depth-rank">${i+1}</span>${i<count?'<span class="depth-starter">START</span>':'<span class="depth-backup">BACKUP</span>'}</td><td><button class="player-link depth-player-name" data-depth-player="${esc(p.id)}" aria-label="View ${esc(p.name)} details">${esc(p.name)}</button><small>${esc(pos)}</small></td><td><strong class="depth-rating">${p.rating}</strong></td><td>${p.age}</td><td>${p.morale??'-'}</td><td>${p.injuryWeeks>0?`<span class="depth-injury-label">OUT · ${p.injuryWeeks} WK</span>`:'<span class="depth-healthy">ACTIVE</span>'}</td><td class="depth-move"><button class="button button-small" data-depth-move="up" data-depth-player-id="${esc(p.id)}" aria-label="Move ${esc(p.name)} up" ${!canEdit||i===0?'disabled':''}>↑</button><button class="button button-small" data-depth-move="down" data-depth-player-id="${esc(p.id)}" aria-label="Move ${esc(p.name)} down" ${!canEdit||i===players.length-1?'disabled':''}>↓</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">No players on this roster at this position.</td></tr>'}</tbody></table></div></section>
+ <aside class="depth-detail"><section class="panel"><div class="depth-detail-heading"><h3 class="panel-title">Player Details</h3><span class="panel-kicker">${pos}</span></div>${profile(selected)}${selected&&players.length>1?`<div class="depth-detail-actions"><button class="button button-primary" data-depth-promote="${esc(selected.id)}" ${!canEdit||players[0]?.id===selected.id?'disabled':''}>Make #1 at ${pos}</button></div>`:''}</section>
+ <section class="panel"><h3 class="panel-title">Compare Players</h3><label class="field-label" for="depth-compare">Compare with</label><select id="depth-compare" class="form-select"><option value="">Select a player</option>${players.filter(p=>p.id!==selected?.id).map(p=>`<option value="${esc(p.id)}" ${compare?.id===p.id?'selected':''}>${esc(p.name)} (${p.rating} OVR)</option>`).join('')}</select>${compare?`<div class="depth-compare-values"><div><strong>${esc(selected.name)}</strong><strong>${esc(compare.name)}</strong></div>${[['Overall','rating'],['Age','age'],['Morale','morale']].map(([name,key])=>`<div><span>${name}</span><b>${selected[key]??'-'}</b><b>${compare[key]??'-'}</b></div>`).join('')}</div>`:''}</section></aside></div>
+ ${!canEdit?'<p class="depth-readonly" role="status">You are browsing another franchise. You can inspect its entire depth chart, but only your managed franchise can be edited.</p>':''}`;
 }
 function scouting(){
  const sc=data.scouting;
@@ -487,10 +555,9 @@ function franchiseDashboard(){const t=data.team;const upcomingGame=data.schedule
 const VIEWS={customize:customizationCenter,weeklyprep:weeklyGamePlan,career:careerHub,dashboard:franchiseDashboard,directory,profile:playerPage,overview,camp:campCenter,standings,schedule,roster,freeagency,finance:financeOffice,reserves:reserveCenter,tradecenter:tradeCenter,coaching,depth,scouting,playoffs,draft,gamecenter:gameCenter,statistics:seasonStatistics,legacy:legacyCenter};
 function render(){
   if(!data)return;
-  teamId=data.coachCareer?.teamId||data.coachCareer?.lastTeamId||data.teamId||'T01';
-  if(!data.teams.some(t=>t.id===teamId))teamId='T01';
-  teamSelect.disabled=!data.coachCareer||data.coachCareer.status!=='active'||Boolean(data.coachCareer.locked);
-  teamSelect.title=teamSelect.disabled?'Your franchise is locked until you resign or are fired':'You can change teams until your first simulation';
+  if(!data.teams.some(t=>t.id===teamId))teamId=managedTeamId()||'T01';
+  teamSelect.disabled=false;
+  teamSelect.title='Browse any franchise. You can only manage your assigned team.';
   teamSelect.innerHTML=data.teams.map(t=>`<option value="${t.id}" ${t.id===teamId?'selected':''}>${esc(t.name)}</option>`).join('');
   const isOff=data.phase==='offseason';
   const off=data.offseason;
@@ -499,26 +566,53 @@ function render(){
   document.querySelectorAll('[data-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));
   document.querySelector('#header-tab').textContent=tab.toUpperCase();
   const c=data.coachCareer;
-  const managerBar=c?.status==='active'?`<div class="manager-status"><div><strong>${esc(c.name)}</strong> <span class="muted"> · ${esc(data.team.name)} · ${c.locked?'Franchise locked':'Changes allowed until first simulation'}</span></div><button class="button button-small" data-coach-resign>Resign as Manager</button></div>`:'';
-  el.innerHTML=managerBar+VIEWS[tab]();
+  const own=managedTeamId()?teamBy(managedTeamId()):null;
+  const managerBar=c?.status==='active'?`<div class="manager-status"><div><strong>${esc(c.name)}</strong> <span class="muted"> · Managing ${esc(own.name)} · ${c.locked?'Career team locked':'Career team not yet locked'}</span></div><button class="button button-small" data-coach-resign>Resign as Manager</button></div>`:'';
+  const browsingBar=own&&!viewingOwnTeam()?`<div class="browse-banner" role="status"><div><strong>VIEW ONLY</strong> · Browsing ${esc(data.team.name)}. Franchise management controls are disabled.</div><button class="button button-small" data-view-own-team>Return to ${esc(own.name)}</button></div>`:'';
+  el.innerHTML=managerBar+browsingBar+VIEWS[tab]();
+  if(!viewingOwnTeam())for(const node of el.querySelectorAll(TEAM_EDIT_CONTROLS.join(','))){
+    node.disabled=true;node.title='Read only. You can only manage your assigned franchise.';
+  }
+  if(!viewingOwnTeam()&&tab==='customize'){
+    for(const id of ['franchise-city','franchise-nickname','franchise-color','edit-person','league-template-file']){const node=document.getElementById(id);if(node)node.disabled=true;}
+  }
   syncCareerModal();
 }
-teamSelect.addEventListener('change',async()=>{
-  const career=data?.coachCareer;
-  if(!career||career.status!=='active'||career.locked){teamSelect.value=teamId;notification('You cannot change franchises while under contract.',true);return;}
-  try{data=await api('coachSelect',{name:career.name,franchiseId:teamSelect.value});teamId=data.coachCareer.teamId;tradeTarget=null;selectedGame=null;render();}
-  catch(error){teamSelect.value=teamId;notification(error.message,true);}
-});
+teamSelect.addEventListener('change',()=>viewFranchise(teamSelect.value));
 document.querySelector('#navigation').addEventListener('click',e=>{const btn=e.target.closest('[data-tab]');if(!btn)return;tab=btn.dataset.tab;render();if(tab==='tradecenter')loadTradeTarget();if(tab==='customize'||tab==='career')refreshSlots();if(tab==='directory')openDirectory();if(tab==='gamecenter'&&!selectedGame){const latest=[...data.playoffs,...data.schedule,...(data.preseasonSchedule||[])].filter(g=>g.status==='final').at(-1);if(latest)loadGame(latest.id);}});
 advance.addEventListener('click',()=>{if(data.phase==='cutdown')return action('finalizeCutdown');if(data.phase!=='offseason')return action('advance');const stage=data.offseason?.stage;return action(!stage?'openOffseason':stage==='freeAgency'?'beginDraft':stage==='draft'?'draftAdvance':'nextSeason');});
 el.addEventListener('click',async e=>{
+  if(e.target.closest('[data-view-own-team]')){await viewFranchise(managedTeamId());return;}
+  // A second UI guard also covers dynamically injected / manually enabled buttons.
+  if(!viewingOwnTeam()&&e.target.closest(TEAM_EDIT_CONTROLS.join(','))){
+    notification('Read only: you can only manage your assigned franchise.',true);return;
+  }
   if(e.target.closest('[data-coach-resign]')){
     if(!confirm('Resign as manager? You will leave your current franchise and must choose a new team before continuing.'))return;
     await action('coachResign');return;
   }
+  const group=e.target.closest('[data-depth-group]');if(group){depthGroup=group.dataset.depthGroup;depthPosition=DEPTH_GROUPS[depthGroup][0];depthSelectedId=null;depthCompareId=null;render();return;}
+  const position=e.target.closest('[data-depth-position]');if(position){depthPosition=position.dataset.depthPosition;depthSelectedId=null;depthCompareId=null;render();return;}
+  const move=e.target.closest('[data-depth-move]');if(move){
+    if(!viewingOwnTeam())return notification('Depth chart is read only for other teams',true);
+    const pos=depthPosition, ids=[...(data.team.depthOrder?.[pos]||data.team.depthChart[pos])];
+    const index=ids.indexOf(move.dataset.depthPlayerId),other=index+(move.dataset.depthMove==='up'?-1:1);
+    if(index>=0&&other>=0&&other<ids.length){[ids[index],ids[other]]=[ids[other],ids[index]];depthSelectedId=move.dataset.depthPlayerId;await action('depthReorder',{position:pos,ids});}
+    return;
+  }
+  if(e.target.closest('[data-depth-autosort]')){if(!viewingOwnTeam())return notification('Read only',true);await action('depthAutoSort',{position:depthPosition});return;}
+  const promote=e.target.closest('[data-depth-promote]');if(promote){
+    if(!viewingOwnTeam())return notification('Read only',true);
+    const ids=[...(data.team.depthOrder?.[depthPosition]||data.team.depthChart[depthPosition])],index=ids.indexOf(promote.dataset.depthPromote);
+    if(index>0){[ids[0],ids[index]]=[ids[index],ids[0]];await action('depthReorder',{position:depthPosition,ids});}
+    return;
+  }
+  const row=e.target.closest('[data-depth-player]');if(row){depthSelectedId=row.dataset.depthPlayer;depthCompareId=null;render();return;}
   const playerBtn=e.target.closest('[data-player]');if(playerBtn){await openPlayer(playerBtn.dataset.player);return;}
   if(e.target.closest('[data-profile-back]')){tab=profileReturn;render();if(tab==='directory')openDirectory();return;}
-  const playerTeam=e.target.closest('[data-player-team]');if(playerTeam&&playerTeam.dataset.playerTeam){notification('You may view other players, but can only manage your assigned team.');return;}
+  const playerTeam=e.target.closest('[data-player-team]');if(playerTeam&&playerTeam.dataset.playerTeam){
+    await viewFranchise(playerTeam.dataset.playerTeam);tab='roster';render();return;
+  }
   const jump=e.target.closest('[data-jump]');if(jump){tab=jump.dataset.jump;render();return;}
   const sorting=e.target.closest('[data-directory-sort]');if(sorting){
     const key=sorting.dataset.directorySort;directoryDescending=directorySort===key?!directoryDescending:!['name','teamName','position'].includes(key);directorySort=key;directoryPage=0;render();return;}
@@ -661,12 +755,14 @@ el.addEventListener('click',async e=>{
 });
 el.addEventListener('input',e=>{if(e.target.id==='directory-query'){directoryQuery=e.target.value;directoryPage=0;updateDirectoryRows();}});
 el.addEventListener('change',async e=>{
+  if(e.target.id==='depth-compare'){depthCompareId=e.target.value||null;render();return;}
   if(e.target.id==='directory-position'){directoryPosition=e.target.value;directoryPage=0;updateDirectoryRows();return;}
   if(e.target.id==='directory-team'){directoryTeam=e.target.value;directoryPage=0;updateDirectoryRows();return;}
   if(e.target.id==='trade-partner'){tradePartnerId=e.target.value;await loadTradeTarget();return;}
   if(e.target.id==='leader-select'){statCategory=e.target.value;render();return;}
   if(e.target.id==='legacy-category'){legacyCategory=e.target.value;render();return;}
   const select=e.target.closest('[data-depth-pos]');if(!select)return;
+  if(!viewingOwnTeam())return notification('Depth charts are read only for other franchises.',true);
   await action('starter',{position:select.dataset.depthPos,slot:Number(select.dataset.depthSlot),playerId:select.value});
 });
 async function loadTradeTarget(){
