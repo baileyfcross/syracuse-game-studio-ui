@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
+  <title>Pro Football Dynasty | SyracuseGameStudio</title>
+  <meta name="description" content="Manage a fictional professional football franchise right in your browser. Free interactive prototype by SyracuseGameStudio." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon">PF</span><div><strong>PRO FOOTBALL</strong><span>DYNASTY</span></div></div>
+      <div class="studio-link"><a href="/" aria-label="Back to SyracuseGameStudio home">← SyracuseGameStudio</a></div>
+      <div class="side-label">MANAGEMENT</div>
+      <nav id="navigation" aria-label="Main navigation">
+        <button class="nav-item active" data-tab="overview">▣ <span>Franchise Overview</span></button>
+        <button class="nav-item" data-tab="dashboard">▦ <span>Front Office</span></button>
+        <button class="nav-item" data-tab="directory">▥ <span>League Players</span></button>
+        <button class="nav-item" data-tab="career">▣ <span>Career Manager</span></button>
+        <button class="nav-item" data-tab="gamecenter">▶ <span>Game Center</span></button>
+        <button class="nav-item" data-tab="statistics">▥ <span>Stats & Awards</span></button>
+        <button class="nav-item" data-tab="legacy">▦ <span>League History & Legacy</span></button>
+        <button class="nav-item" data-tab="standings">▤ <span>League Standings</span></button>
+        <button class="nav-item" data-tab="schedule">◷ <span>Season Schedule</span></button>
+        <button class="nav-item" data-tab="camp">▧ <span>Training Camp & Preseason</span></button>
+        <button class="nav-item" data-tab="roster">♟ <span>Team Roster</span></button>
+        <button class="nav-item" data-tab="freeagency">⇄ <span>Free Agency</span></button>
+        <button class="nav-item" data-tab="finance">$ <span>Contracts & Cap</span></button>
+        <button class="nav-item" data-tab="reserves">+ <span>Practice / IR / Waivers</span></button>
+        <button class="nav-item" data-tab="tradecenter">⇆ <span>Trade Center</span></button>
+        <button class="nav-item" data-tab="weeklyprep">◈ <span>Weekly Game Planning</span></button>
+        <button class="nav-item" data-tab="coaching">◈ <span>Coaching & Staff</span></button>
+        <button class="nav-item" data-tab="depth">≡ <span>Depth Chart</span></button>
+        <button class="nav-item" data-tab="scouting">◎ <span>Draft Scouting</span></button>
+        <button class="nav-item" data-tab="playoffs">◆ <span>Postseason</span></button>
+        <button class="nav-item" data-tab="draft">▥ <span>Draft & History</span></button>
+        <button class="nav-item" data-tab="customize">⚙ <span>Customize & Saves</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="mode-badge"><span class="green-dot"></span> NFL 2026 rules preset</div>
+        <small>Free browser game · Fictional teams</small>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">FRANCHISE OFFICE <span>/</span> <strong id="header-tab">OVERVIEW</strong></div>
+        <div class="top-actions">
+          <label class="sr-only" for="team-select">Select franchise</label>
+          <select id="team-select"></select>
+          <button class="button button-primary" id="advance-btn">Advance Week →</button>
+        </div>
+      </header>
+      <section id="app" aria-live="polite"><div class="loading">Initializing league...</div></section>
+      <footer>PRO FOOTBALL DYNASTY <span>Saved in this browser · Export a career backup regularly · Independent prototype, not affiliated with the NFL</span></footer>
+    </main>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js?v=1.1.1"></script>
+</body>
+</html>
