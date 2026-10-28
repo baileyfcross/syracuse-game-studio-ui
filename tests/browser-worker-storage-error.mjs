@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+const messages=[];let requestHandler;
+globalThis.self={addEventListener(type,cb){if(type==='message')requestHandler=cb;},postMessage(x){messages.push(x);}};
+globalThis.indexedDB={open(){const req={};setTimeout(()=>{req.error=Error('Storage unavailable');req.onerror?.();},100);return req;}};
+await import(pathToFileURL(join(process.cwd(),'public/ProFootballDynasty/browser-worker.js')));
+requestHandler({data:{id:1,type:'state',args:{}}});
+const deadline=Date.now()+3000;
+while(messages.length<2&&Date.now()<deadline)await new Promise(r=>setTimeout(r,10));
+assert.ok(messages.some(m=>m.type==='worker-startup-error'&&m.error.includes('Storage unavailable')));
+assert.ok(messages.some(m=>m.id===1&&m.error.includes('Storage unavailable')));
+console.log('PASS: IndexedDB failure is reported, not silently hung');

@@ -342,3 +342,25 @@ h2 em, .statement-content em { font-style: normal; color: var(--lavender); }
   .story-hero-meta { font-size:11px; gap:10px; }
   .story-chapter p { font-size:17px; }
 }
+
+/* Pro Football Styling */
+.game-link {
+  display: grid;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.25s ease;
+}
+
+.game-link:hover {
+  transform: translateY(-4px);
+}
+
+.game-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
+.game-link:hover .updates-coming {
+  opacity: 0.8;
+}
