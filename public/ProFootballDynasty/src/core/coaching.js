@@ -10,10 +10,48 @@ export const TEMPOS = Object.freeze(['balanced','uptempo','clock-control']);
 export const PRACTICE_FOCUSES = Object.freeze(['balanced','offense','defense','conditioning','development']);
 export const COACH_SKILLS = Object.freeze(['offense','defense','development','leadership']);
 
-const DEFAULT_STARTERS={QB:1,RB:1,WR:3,TE:1,OL:5,DL:3,EDGE:2,LB:2,CB:2,S:2,K:1,P:1,LS:1};
+export const DEFAULT_STARTERS={QB:1,RB:1,WR:3,TE:1,OL:5,DL:3,EDGE:2,LB:2,CB:2,S:2,K:1,P:1,LS:1};
 export function defaultDepthChart(team){
   return Object.fromEntries(Object.entries(DEFAULT_STARTERS).map(([position,n])=>
-    [position,team.roster.filter(p=>p.position===position).sort((a,b)=>b.rating-a.rating).slice(0,n).map(p=>p.id)]));
+    [position,team.roster.filter(p=>p.position===position).sort((a,b)=>b.rating-a.rating||a.id.localeCompare(b.id)).slice(0,n).map(p=>p.id)]));
+}
+/** Full position ranking, including backups. Independent of roster array order. */
+export function defaultDepthOrder(team){
+  return Object.fromEntries(Object.keys(DEFAULT_STARTERS).map(position=>[position,
+    team.roster.filter(p=>p.position===position).sort((a,b)=>b.rating-a.rating||a.id.localeCompare(b.id)).map(p=>p.id)]));
+}
+export function reconcileDepthOrder(team){
+  const defaults=defaultDepthOrder(team);
+  team.depthOrder??={};
+  team.depthChart??={};
+  for(const [position,validIds] of Object.entries(defaults)){
+    const valid=new Set(validIds);
+    const order=[...new Set([
+      ...(team.depthOrder[position]||team.depthChart[position]||[]).filter(id=>valid.has(id)),
+      ...validIds
+    ])];
+    team.depthOrder[position]=order;
+    team.depthChart[position]=order.slice(0,DEFAULT_STARTERS[position]);
+  }
+  return team.depthOrder;
+}
+/** Reject malformed updates and duplicates, then update the simulation starters. */
+export function setDepthOrder(team,position,ids){
+  if(!(position in DEFAULT_STARTERS))throw Error('Unknown depth chart position');
+  if(!Array.isArray(ids))throw Error('Invalid depth chart order');
+  const eligible=team.roster.filter(p=>p.position===position).map(p=>p.id);
+  if(ids.length!==eligible.length||new Set(ids).size!==eligible.length||
+    !ids.every(id=>eligible.includes(id)))throw Error('Depth chart must include each eligible player exactly once');
+  reconcileDepthOrder(team);
+  team.depthOrder[position]=[...ids];
+  team.depthChart[position]=ids.slice(0,DEFAULT_STARTERS[position]);
+  return team.depthOrder[position];
+}
+export function autoSortDepth(team,position){
+  if(!(position in DEFAULT_STARTERS))throw Error('Unknown depth chart position');
+  const ordered=team.roster.filter(p=>p.position===position).sort((a,b)=>
+    (a.injuryWeeks>0)-(b.injuryWeeks>0)||b.rating-a.rating||a.id.localeCompare(b.id)).map(p=>p.id);
+  return setDepthOrder(team,position,ordered);
 }
 export function initializeTeamManagement(team,seed=2026){
   const random=rng(hashString(`${seed}-${team.id}-coaching`));
@@ -23,6 +61,7 @@ export function initializeTeamManagement(team,seed=2026){
   team.gamePlan={offense:'balanced',defense:'balanced',tempo:'balanced',...normalizeTactics()};
   team.practice={focus:'balanced',completedWeeks:0};
   team.depthChart=defaultDepthChart(team);
+  team.depthOrder=defaultDepthOrder(team);
   team.bookmarks=[];
 }
 export function upgradeLegacyTeam(team,seed){
@@ -36,14 +75,10 @@ export function upgradeLegacyTeam(team,seed){
   team.coach.careerWins??=0;team.coach.careerLosses??=0;team.coach.careerTies??=0;
   team.bookmarks??=[];
   team.gamePlan={...team.gamePlan,...normalizeTactics(team.gamePlan)};
+  reconcileDepthOrder(team);
 }
 export function reconcileDepthChart(team){
-  const defaults=defaultDepthChart(team);
-  for(const [position,autoIds] of Object.entries(defaults)) {
-    const valid=(team.depthChart?.[position]||[]).filter(id=>team.roster.some(p=>p.id===id&&p.position===position));
-    team.depthChart??={};
-    team.depthChart[position]=[...new Set([...valid,...autoIds])].slice(0,autoIds.length);
-  }
+  reconcileDepthOrder(team);
   return team.depthChart;
 }
 export function setGamePlan(team,{offense,defense,tempo}){
@@ -63,10 +98,13 @@ export function setStarter(team,position,slot,playerId){
   if(!Number.isInteger(slot)||slot<0||slot>=DEFAULT_STARTERS[position])throw Error('Invalid depth chart slot');
   const player=team.roster.find(p=>p.id===playerId);
   if(!player||player.position!==position)throw Error('Starter must be a roster player at this position');
-  if(team.depthChart[position].some((id,i)=>i!==slot&&id===playerId))throw Error('Player already occupies another starter slot');
-  const updated=structuredClone(team.depthChart);
-  updated[position]??=[];updated[position][slot]=playerId;
-  team.depthChart=updated;return updated;
+  reconcileDepthOrder(team);
+  const list=[...team.depthOrder[position]];
+  const from=list.indexOf(playerId);
+  // Swap rather than duplicate: previously assigned starter becomes a backup.
+  [list[from],list[slot]]=[list[slot],list[from]];
+  setDepthOrder(team,position,list);
+  return team.depthChart;
 }
 export function starterFor(team,position,slot=0){
   const ids=team.depthChart?.[position]||[];

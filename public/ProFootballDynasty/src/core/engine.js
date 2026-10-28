@@ -19,6 +19,7 @@ import { initializeStatistics, registerGameStatistics, leaders, teamSeasonStatis
 import { ensureLegacy, recordLegacyGame, archiveSeason, recordRetirement, processHallOfFame, reportDraftClass, legacySummary } from './legacy.js';
 import {initializeCustomization} from './customization.js';
 import {finalizeSeasonHonors} from './honors.js';
+import {ensureCoachCareer} from './career.js';
 export function createLeague(seed=2026){
   const teams=createTeams(seed);
   populateRosters(teams,2026,seed);
@@ -32,7 +33,7 @@ export function createLeague(seed=2026){
   initializeScouting(state);
   initializeStatistics(state);
   ensureDraftPicks(state);
-  ensureLegacy(state);initializeCustomization(state);state.honorsHistory=[];
+  ensureLegacy(state);initializeCustomization(state);ensureCoachCareer(state);state.honorsHistory=[];
   state.statisticsPartial=false;
   return state;
 }
@@ -47,7 +48,7 @@ export function upgradeLeague(state){
   ensureDraftPicks(state);
   state.negotiationHistory??=[];state.unsignedRookies??=[];
   state.managedTeamId??='T01';state.preseasonGames??=[];
-  ensureLegacy(state,{migration:state.version<9});initializeCustomization(state);state.honorsHistory??=[];state.version=10;return state;
+  ensureLegacy(state,{migration:state.version<9});initializeCustomization(state);ensureCoachCareer(state,{migration:true});state.honorsHistory??=[];state.version=10;return state;
 }
 const byId=(state,id)=>{const t=state.teams.find(t=>t.id===id);if(!t)throw Error(`Unknown team ${id}`);return t;};
 const compactGame=g=>({id:g.id,year:g.year,season:g.season,week:g.week,home:g.home,away:g.away,
@@ -66,16 +67,20 @@ export function tradeTargetSummary(state,teamId){
     picks:state.draftPicks.filter(p=>p.ownerId===teamId)};
 }
 export function stateSummary(state,selectedTeamId='T01'){
-  const team=byId(state,selectedTeamId);
+  // Viewing a franchise is distinct from controlling it. Only the worker's
+  // requireManagedTeam guard authorizes changes to a franchise.
+  const displayedId=state.teams.some(t=>t.id===selectedTeamId) ? selectedTeamId
+    : (state.coachCareer?.teamId||state.coachCareer?.lastTeamId||'T01');
+  const team=byId(state,displayedId);
   const financialYear=state.offseason?.year??state.season;
   const offseason=state.offseason?{...state.offseason,board:undefined,
     onClock:currentPick(state),completed:state.offseason.picks?.length||0,
     total:state.offseason.board?.length||224,recent:(state.offseason.picks||[]).slice(-12).reverse()}:null;
-  return {settings:state.settings,honorsHistory:(state.honorsHistory||[]).slice(-5).reverse(),customizationLog:state.customizationLog.slice(-12).reverse(),offseason,lastNegotiation:state.lastNegotiation||null,lastTradeDecision:state.lastTradeDecision||null,
+  return {coachCareer:state.coachCareer,settings:state.settings,honorsHistory:(state.honorsHistory||[]).slice(-5).reverse(),customizationLog:state.customizationLog.slice(-12).reverse(),offseason,lastNegotiation:state.lastNegotiation||null,lastTradeDecision:state.lastTradeDecision||null,
     financialYear,season:state.season,phase:state.phase,week:state.week,round:state.round,
     camp:campSummary(state,team.id),preseasonSchedule:(state.preseasonGames||[]).filter(g=>g.home===team.id||g.away===team.id).map(compactGame),
     management:staffSummary(state,team.id),development:developmentSummary(team),managedTeamId:state.managedTeamId,
-    champion:state.champion,teamId:team.id,team,capSpace:capSpace(team,financialYear,state.salaryCap),
+    champion:state.champion,teamId:team.id,viewOnly:state.coachCareer?.teamId!==team.id,team,capSpace:capSpace(team,financialYear,state.salaryCap),
     capProjection:capProjection(team,financialYear,state.salaryCap),gameDay:gameDayList(team),
     waivers:state.waivers.map(w=>({id:w.id,player:w.player,claims:w.claims.length,availableAfterWeek:w.availableAfterWeek})),
     draftPicks:state.draftPicks.filter(p=>p.ownerId===team.id),
@@ -140,6 +145,7 @@ export function advanceLeague(state,precomputed=null){
     }
     recalculateRecords(state);
     for(const x of resolveWaivers(state))state.events.push({year:state.season,text:x.winner?`${x.player} claimed off waivers.`:`${x.player} cleared waivers.`});
+    for(const team of state.teams)reconcileDepthChart(team);
     state.events.push({year:state.season,text:`Week ${state.week} completed (${games.length} games).`});
     if(state.week===NFL_2026.weeks){
       state.playoffSeedings={AFC:playoffSeeds(state,'AFC'),NFC:playoffSeeds(state,'NFC')};
@@ -205,6 +211,7 @@ export function signFreeAgent(state,teamId,playerId,{salary,years,signingBonus}=
   const newYear=state.phase==='offseason'?state.season+1:state.season;
   const signed=signPlayer(team,p,newYear,{salary:salary??Math.max(900_000,p.rating*65_000),years:years??2,signingBonus:signingBonus??0,baseCap:state.phase==='offseason'?Math.round(NFL_2026.salaryCap*Math.pow(1.04,newYear-2026)):state.salaryCap,rosterLimit:['trainingCamp','preseason'].includes(state.phase)?90:53});
   state.freeAgents.splice(index,1);
+  reconcileDepthChart(team);
   state.events.push({year:state.season,text:`${team.name} signed ${p.name}.`});
   return signed;
 }
@@ -259,7 +266,10 @@ export function releasePractice(state,teamId,playerId){
   const p=releaseFromPracticeSquad(byId(state,teamId),playerId);state.freeAgents.push(p);return p;
 }
 export function promotePractice(state,teamId,playerId,salary=1_000_000){
-  return promotePracticePlayer(byId(state,teamId),playerId,state.offseason?.year??state.season,state.salaryCap,salary);
+  const team=byId(state,teamId);
+  const player=promotePracticePlayer(team,playerId,state.offseason?.year??state.season,state.salaryCap,salary);
+  reconcileDepthChart(team);
+  return player;
 }
 export function elevatePractice(state,teamId,playerId){
   return elevatePracticePlayer(byId(state,teamId),playerId,state.week);
@@ -337,11 +347,14 @@ export function openDraft(state,teamId='T01'){
   if(!state.offseason)openOffseason(state,teamId);
   if(state.offseason.stage!=='freeAgency')throw Error('Draft already opened');
   cpuFreeAgency(state,{controlledTeamId:state.offseason.managedTeamId,maxPerClub:2});
+  for(const team of state.teams)reconcileDepthChart(team);
   return initializeDraft(state);
 }
 export function selectDraftProspect(state,teamId,prospectId){
   if(!state.offseason||state.offseason.managedTeamId!==teamId)throw Error('Only the controlled franchise can select manually');
-  return draftSelection(state,prospectId);
+  const result=draftSelection(state,prospectId);
+  reconcileDepthChart(byId(state,teamId));
+  return result;
 }
 export function simulateCpuDraft(state){return advanceCpuDraft(state);}
 export function finishDraft(state){return completeDraft(state);}

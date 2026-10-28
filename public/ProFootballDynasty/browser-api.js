@@ -1,5 +1,5 @@
 // Browser adaptation: same core command protocol, with no remote game server.
-const gameWorker = new Worker(new URL('./browser-worker.js?v=1.1.1', import.meta.url), {type:'module'});
+const gameWorker = new Worker(new URL('./browser-worker.js?v=e5d43ee72f36', import.meta.url), {type:'module'});
 const pending = new Map();
 const queued = [];
 let sequence = 0;
