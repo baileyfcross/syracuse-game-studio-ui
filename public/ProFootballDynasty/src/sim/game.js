@@ -56,10 +56,15 @@ export function simulateMatch(home,away,{seed=2026,postseason=false,matchId='',i
     const pool=(positionPools[team][position]||[]).filter(p=>!unavailable.has(p.id));
     if(!pool.length)return null;
     const importance=rotation;
-    const preferred=t.depthChart?.[position]||[];
-    // Depth chart remains meaningful; rested backups can earn snaps as starters fatigue.
+    const preferred=t.depthOrder?.[position]||t.depthChart?.[position]||[];
+    const startingSlots=t.depthChart?.[position]?.length||1;
+    // Manager ranking sets the base lineup. Large fatigue can rotate backups in.
     const choices=pool.sort((a,b)=>{
-      const score=p=>p.rating-(fatigue[p.id]||0)*importance+(preferred.includes(p.id)?1.5:0);
+      const score=p=>{
+        const rank=preferred.indexOf(p.id);
+        const depthBonus=rank<0?0:rank<startingSlots?90-rank*5:Math.max(0,7-rank*.45);
+        return p.rating+depthBonus-(fatigue[p.id]||0)*importance;
+      };
       return score(b)-score(a)||a.id.localeCompare(b.id);
     });
     return choices[slot%choices.length]||choices[0];

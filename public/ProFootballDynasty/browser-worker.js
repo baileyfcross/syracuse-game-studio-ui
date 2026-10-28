@@ -22,7 +22,8 @@ class BrowserSimulationWorker {
 import { leagueDirectory, playerProfile } from './src/core/directory.js';
 import { NFL_2026 } from './src/config/nfl2026.js';
 import { createLeague, upgradeLeague, advanceLeague, stateSummary, signFreeAgent, cutPlayer, trade, startNextSeason, getGameDetail, tradeTargetSummary, franchiseTag, signPractice, releasePractice, promotePractice, elevatePractice, reservePlayer, returnFromReserve, claimPlayer, restructureContract, extendContract, tradePackage, openOffseason, openDraft, selectDraftProspect, simulateCpuDraft, finishDraft, negotiatePlayerOffer, negotiatePlayerExtension, submitTradeOffer, hireFranchiseStaff, prepareCpuWeek, setCampPlan, autoRosterCuts, startRegularSeason } from './src/core/engine.js';
-import { setGamePlan, setPracticeFocus, setStarter, spendSkillPoint } from './src/core/coaching.js';
+import { setGamePlan, setPracticeFocus, setStarter, setDepthOrder, autoSortDepth, spendSkillPoint } from './src/core/coaching.js';
+import {chooseCoachTeam, resignCoach, requireActiveCoach, requireManagedTeam, lockCoachTeam, evaluateCoachJob} from './src/core/career.js';
 import {preseasonLineup} from './src/core/calendar.js';
 import {changeSettings, editFranchise, editPerson, exportLeagueTemplate, importLeagueTemplate} from './src/core/customization.js';
 import {validateSlotId, safeSlotName, validateImportPayload} from './src/core/save-slots.js';
@@ -90,17 +91,58 @@ async function createSlot(args){
   try{await fs.access(slotPath(id));throw Error('This save slot already exists');}catch(e){if(e.code!=='ENOENT')throw e;}
   const created=createLeague(Number.isInteger(args.seed)?args.seed:2026);created.slotName=safeSlotName(args.name||id);
   await save();await writeSlot(id,created);activeSlot=id;state=created;await persistActiveSlot();
-  return stateSummary(state,args.teamId||'T01');
+  return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
 }
 async function loadSlot(args){
   const id=validateSlotId(args.slotId);
   const candidate=upgradeLeague(validateImportPayload(JSON.parse(await fs.readFile(slotPath(id),'utf8'))));
   await save();activeSlot=id;state=candidate;await persistActiveSlot();
-  return stateSummary(state,args.teamId||'T01');
+  return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
 }
 async function deleteSlot(args){
   const id=validateSlotId(args.slotId);if(id==='default'||id===activeSlot)throw Error('Cannot delete the default or active save slot');
   await fs.unlink(slotPath(id));return slotsList();
+}
+// Full career deletion. Separate from slotsDelete for compatibility with
+// older callers which only delete inactive secondary slots.
+async function deleteCareer(args) {
+  const id=validateSlotId(args.slotId);
+  if (args.confirmation!=='DELETE') throw Error('Type DELETE to confirm permanent career deletion');
+
+  if (id==='default') {
+    // The default slot is reserved for startup. Erase the old career by
+    // replacing its content with an entirely new, unassigned league.
+    const replacement=createLeague();
+    replacement.slotName='Default career';
+    await writeSlot('default',replacement);
+    if (activeSlot==='default') state=replacement;
+  } else if (id===activeSlot) {
+    // Switch away before deleting the live save. Do not call save() here,
+    // because that would recreate the deleted career.
+    let replacement;
+    try {
+      replacement=upgradeLeague(validateImportPayload(JSON.parse(await fs.readFile(slotPath('default'),'utf8'))));
+    } catch(error) {
+      if(error.code!=='ENOENT') throw error;
+      replacement=createLeague();
+      replacement.slotName='Default career';
+      await writeSlot('default',replacement);
+    }
+    // Persist the fallback first. If unlink fails, the deleted slot can
+    // still be recovered; the active-slot pointer never dangles.
+    const former=activeSlot;
+    activeSlot='default';
+    try { await persistActiveSlot(); }
+    catch(error) {activeSlot=former;throw error;}
+    state=replacement;
+    await fs.unlink(slotPath(id));
+  } else {
+    await fs.unlink(slotPath(id));
+  }
+  return {
+    slots:await slotsList(),
+    state:stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||'T01')
+  };
 }
 async function renameSlot(args){
   const id=validateSlotId(args.slotId);
@@ -124,12 +166,13 @@ async function duplicateSlot(args){
   await writeSlot(destinationId,source);
   return slotsList();
 }
-function ownedTeam(id){const team=state.teams.find(t=>t.id===id);if(!team)throw Error('Unknown franchise');return team;}
+function ownedTeam(id){requireManagedTeam(state,id);const team=state.teams.find(t=>t.id===id);if(!team)throw Error('Unknown franchise');return team;}
 async function handle(type,args={}){
   if(type==='slotsList')return slotsList();
   if(type==='slotsCreate')return createSlot(args);
   if(type==='slotsLoad')return loadSlot(args);
   if(type==='slotsDelete')return deleteSlot(args);
+  if(type==='slotsDeleteCareer')return deleteCareer(args);
   if(type==='slotsRename')return renameSlot(args);
   if(type==='slotsDuplicate')return duplicateSlot(args);
   if(type==='exportSave')return JSON.stringify(state);
@@ -139,17 +182,32 @@ async function handle(type,args={}){
     const imported=upgradeLeague(validateImportPayload(JSON.parse(args.json)));
     imported.slotName=safeSlotName(args.name||'Imported career');
     await save();
-    state=imported;await save();return stateSummary(state,args.teamId||'T01');
+    state=imported;await save();return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
   }
   if(type==='rules')return {rules:NFL_2026};
   if(type==='directory')return leagueDirectory(state);
   if(type==='playerProfile')return playerProfile(state,args.playerId);
-  if(type==='state')return stateSummary(state,args.teamId||'T01');
+  if(type==='state')return stateSummary(state,args.teamId||state.coachCareer?.teamId||state.coachCareer?.lastTeamId||'T01');
   if(type==='gameDetail')return getGameDetail(state,args.gameId);
   if(type==='tradeTarget')return tradeTargetSummary(state,args.teamId);
-  if(type==='reset'){
-    state=createLeague(Number(args.seed)||2026);await save();return stateSummary(state,args.teamId||'T01');
+  if(type==='coachSelect'){
+    chooseCoachTeam(state,{name:args.name,franchiseId:args.franchiseId});
+    await save();
+    return stateSummary(state,state.coachCareer.teamId);
   }
+  if(type==='coachResign'){
+    resignCoach(state);
+    await save();
+    return stateSummary(state,state.coachCareer.lastTeamId);
+  }
+  if(type==='reset'){
+    state=createLeague(Number(args.seed)||2026);await save();return stateSummary(state,state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
+  }
+  // Career permissions live in the worker, not only in the browser UI.
+  // Calendar advancement and every management action require an active franchise.
+  requireActiveCoach(state);
+  if(args.teamId && args.teamId!==state.coachCareer.teamId)
+    throw Error('You cannot control another franchise while under contract.');
   if(type==='advance'){
     let simulated;
     if(state.phase==='preseason'){
@@ -161,6 +219,8 @@ async function handle(type,args={}){
       simulated=new Map((await workerSimulation(games)).map(g=>[g.id,g]));
     }
     advanceLeague(state,simulated);
+    lockCoachTeam(state);
+    evaluateCoachJob(state);
   }else if(type==='nextSeason')startNextSeason(state);
   else if(type==='settings')changeSettings(state,args.settings);
   else if(type==='importLeagueTemplate'){importLeagueTemplate(state,args.template);}
@@ -195,13 +255,16 @@ async function handle(type,args={}){
   else if(type==='gameplan')setGamePlan(ownedTeam(args.teamId),{offense:args.offense,defense:args.defense,tempo:args.tempo});
   else if(type==='practice')setPracticeFocus(ownedTeam(args.teamId),args.focus);
   else if(type==='starter')setStarter(ownedTeam(args.teamId),args.position,Number(args.slot),args.playerId);
+  else if(type==='depthReorder')setDepthOrder(ownedTeam(args.teamId),args.position,args.ids);
+  else if(type==='depthAutoSort')autoSortDepth(ownedTeam(args.teamId),args.position);
   else if(type==='coachSkill')spendSkillPoint(ownedTeam(args.teamId),args.skill);
   else if(type==='hireStaff')hireFranchiseStaff(state,args.teamId,args.role,args.candidateId);
   else if(type==='scout')scoutProspect(state,args.teamId,args.prospectId);
   else if(type==='scoutingFocus')setScoutingFocus(state,args.teamId,args.focus);
   else if(type==='bookmarkProspect')toggleProspectBookmark(state,args.teamId,args.prospectId);
   else throw Error(`Unknown action: ${type}`);
-  await save();return stateSummary(state,args.teamId||'T01');
+  if(['nextSeason','openOffseason','beginDraft','draftAdvance','autoDraftRemaining','finalizeCutdown'].includes(type)) lockCoachTeam(state);
+  await save();return stateSummary(state,args.viewTeamId||state.coachCareer?.teamId||state.coachCareer?.lastTeamId||args.teamId||'T01');
 }
 // Register immediately, before opening IndexedDB. Messages arriving during
 // initialization are kept in-order and never lost.
