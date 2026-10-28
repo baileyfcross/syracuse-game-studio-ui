@@ -26,7 +26,26 @@
 @media(max-width:1000px){.directory-controls{grid-template-columns:1fr 1fr}.directory-controls label:first-child{grid-column:1/-1}.profile-metrics{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:650px){.career-grid,.directory-controls{grid-template-columns:1fr}.directory-controls label:first-child{grid-column:auto}.profile-metrics{grid-template-columns:repeat(2,1fr)}}
 
-/* SyracuseGameStudio deployment integration */
+/* v1.2 required career setup and protected team selection */
+.career-modal[hidden], .career-error[hidden] {display:none!important}
+.career-modal {position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;background:rgba(5,12,20,.94);padding:20px;overflow:auto}
+.career-modal-card {width:min(100%,520px);background:#142331;border:1px solid #47617a;border-radius:14px;padding:clamp(23px,5vw,42px);box-shadow:0 28px 95px #000c;color:#e7f0f7}
+.career-modal-kicker {font-size:11px;font-weight:800;letter-spacing:.13em;color:#abdb8b;margin-bottom:15px}
+.career-modal-card h2 {font-size:30px;line-height:1.17;margin:0 0 12px;color:#f1f6fb}
+.career-modal-card p {color:#b6c6d5;line-height:1.6;font-size:14px}
+.career-modal-card form {display:grid;gap:10px;margin-top:24px}
+.career-modal-card form label {font-size:12px;font-weight:800;color:#e5eff6;margin-top:9px}
+.career-modal-card input,.career-modal-card select {display:block;width:100%;padding:13px;min-height:44px}
+.career-modal-card .career-commitment {font-size:12px;padding:12px;background:#1c3041;border-left:3px solid #a4d77f}
+.career-modal-card .career-error {color:#ffa9ac}
+.career-modal-card #career-start-button {padding:13px 19px;margin-top:8px;justify-content:center}
+#team-select:disabled {opacity:.67;cursor:not-allowed}
+.manager-status {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #354b5f;border-radius:10px;padding:11px 16px;background:#172839;margin-bottom:16px}
+.manager-status strong {color:#bee998}
+.manager-status .muted {font-size:12px}
+@media(max-width:650px){.career-modal-card h2{font-size:25px}.career-modal{align-items:flex-start}}
+
+/* SyracuseGameStudio website integration. Shared game styles live in web/style.css. */
 .studio-link{margin:7px 14px 18px;}
 .studio-link a{display:block;color:#9bc7d7;border:1px solid #355368;border-radius:8px;padding:11px 12px;text-decoration:none;font-size:13px;}
 .studio-link a:hover,.studio-link a:focus{color:#fff;background:#243d4d;outline-offset:2px;}

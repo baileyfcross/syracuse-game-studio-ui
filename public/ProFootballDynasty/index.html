@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <title>Pro Football Dynasty | SyracuseGameStudio</title>
-  <meta name="description" content="Manage a fictional professional football franchise right in your browser. Free interactive prototype by SyracuseGameStudio." />
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="description" content="Manage a fictional professional football franchise in your browser. A SyracuseGameStudio prototype." />
+  <link rel="stylesheet" href="./style.css?v=5483a3dec7ce" />
 </head>
 <body>
   <div class="shell">
@@ -53,10 +53,26 @@
         </div>
       </header>
       <section id="app" aria-live="polite"><div class="loading">Initializing league...</div></section>
-      <footer>PRO FOOTBALL DYNASTY <span>Saved in this browser · Export a career backup regularly · Independent prototype, not affiliated with the NFL</span></footer>
+      <footer>PRO FOOTBALL DYNASTY <span>Saved in this browser · Export career backups regularly · Independent prototype, not affiliated with the NFL</span></footer>
     </main>
   </div>
+  <div id="career-modal" class="career-modal" role="dialog" aria-modal="true" aria-labelledby="career-modal-title" hidden>
+    <div class="career-modal-card">
+      <div class="career-modal-kicker">PRO FOOTBALL DYNASTY / YOUR CAREER</div>
+      <h2 id="career-modal-title">Choose your franchise</h2>
+      <p id="career-modal-info">Enter your name and choose the team you want to manage. After your first simulation, your team is locked until you resign or are fired.</p>
+      <form id="career-setup-form">
+        <label for="career-manager-name">Your name</label>
+        <input id="career-manager-name" class="form-select" name="managerName" maxlength="55" minlength="2" required autocomplete="name" placeholder="Manager name" />
+        <label for="career-franchise-select">Franchise</label>
+        <select id="career-franchise-select" class="form-select" name="franchise" required></select>
+        <p class="career-commitment">The franchise becomes permanent once you simulate your first week or advance the offseason. You can start another job only after resigning or being fired.</p>
+        <p id="career-modal-error" class="career-error" role="alert" hidden></p>
+        <button class="button button-primary" id="career-start-button" type="submit">Start Coaching Career →</button>
+      </form>
+    </div>
+  </div>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="./app.js?v=1.1.1"></script>
+  <script type="module" src="./app.js?v=5483a3dec7ce"></script>
 </body>
 </html>

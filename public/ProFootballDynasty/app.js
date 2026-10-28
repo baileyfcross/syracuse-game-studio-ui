@@ -1,4 +1,5 @@
-import { gameFetch } from "./browser-api.js?v=1.1.1";
+// Shared UI: built from web/app.js. Do not edit the generated file.
+import {gameFetch} from './browser-api.js?v=5483a3dec7ce';
 const fetch = gameFetch;
 const el=document.querySelector('#app');
 const teamSelect=document.querySelector('#team-select');
@@ -7,7 +8,7 @@ const toast=document.querySelector('#toast');
 let data=null,tab='overview',busy=false,conference='AFC';
 let selectedGame=null, statCategory='passYards',statScope='regular';
 let legacySection='news',legacyCategory='passYards',saveSlots=[];
-let teamId=localStorage.getItem('pfd-team')||'T01';
+let teamId='T01'; // The assigned franchise comes from the saved coaching career, never localStorage.
 let tradeTarget=null, tradePartnerId='T02';
 const money=n=>'$'+(n/1_000_000).toFixed(1)+'M';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -17,6 +18,41 @@ const gameButton=g=>g.status==='final'?`<button class="button button-small" data
 async function loadGame(id){try{const r=await fetch('/api/game?id='+encodeURIComponent(id));const x=await r.json();if(!r.ok)throw Error(x.error||'Failed to load game');selectedGame=x;tab='gamecenter';render();}catch(e){notification(e.message,true);}}
 const phaseName=p=>({regular:'REGULAR SEASON',playoffs:'POSTSEASON',offseason:'OFFSEASON',trainingCamp:'TRAINING CAMP',preseason:'PRESEASON',cutdown:'ROSTER CUTDOWN'}[p]||p);
 function notification(msg,error=false){toast.textContent=msg;toast.style.display='block';toast.style.background=error?'#552932':'#224e3c';setTimeout(()=>toast.style.display='none',3700);}
+const careerModal=document.querySelector('#career-modal');
+const careerForm=document.querySelector('#career-setup-form');
+const careerNameInput=document.querySelector('#career-manager-name');
+const careerTeamInput=document.querySelector('#career-franchise-select');
+const careerError=document.querySelector('#career-modal-error');
+function syncCareerModal() {
+  if(!data)return;
+  const career=data.coachCareer;
+  const needed=!career||career.status!=='active';
+  careerModal.hidden=!needed;
+  if(!needed){careerError.hidden=true;return;}
+  const status=career?.status;
+  document.querySelector('#career-modal-title').textContent=status==='fired'?'You have been fired':status==='resigned'?'Find your next franchise':'Begin your coaching career';
+  document.querySelector('#career-modal-info').textContent=status==='fired'
+    ?'Ownership has dismissed you after consecutive poor seasons. Your career can continue with a new franchise.'
+    :status==='resigned'?'You have resigned from your previous team. Choose the next franchise to continue your career.'
+    :'Enter your name and select your franchise. After your first simulation, you cannot switch teams unless you resign or are fired.';
+  if(career?.name){careerNameInput.value=career.name;careerNameInput.readOnly=true;}
+  else {careerNameInput.value='';careerNameInput.readOnly=false;}
+  careerTeamInput.innerHTML=data.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.conference)} ${esc(t.division)})</option>`).join('');
+  careerTeamInput.value=data.teams.find(t=>t.id===teamId)?.id||data.teams[0].id;
+  careerError.hidden=true;
+  queueMicrotask(()=>{if(!careerModal.hidden)(career?.name?careerTeamInput:careerNameInput).focus();});
+}
+careerForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const button=document.querySelector('#career-start-button');button.disabled=true;careerError.hidden=true;
+  try {
+    data=await api('coachSelect',{name:careerNameInput.value,franchiseId:careerTeamInput.value});
+    teamId=data.coachCareer.teamId;selectedGame=null;tradeTarget=null;directoryCache=null;
+    render();notification(`Now managing ${data.team.name}`);
+  }catch(error){careerError.textContent=error.message;careerError.hidden=false;}
+  finally{button.disabled=false;}
+});
+
 async function api(action,args={}){
   const endpoint=action==='state'||action==='rules'?`/api/${action}?team=${encodeURIComponent(teamId)}`:'/api/action';
   const r=await fetch(endpoint,action==='state'||action==='rules'?{}:{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:action,args:{...args,teamId}})});
@@ -331,9 +367,9 @@ function customizationCenter(){
  </div><button class="button button-primary" data-save-settings>Save Gameplay Settings</button>
  <p class="muted">Settings affect future decisions and games only. No retroactive changes to played games.</p></section>
  <section class="panel"><h3 class="panel-title">Career Save Slots <span class="panel-kicker">LOCALLY STORED</span></h3>
- <p class="muted">Default save remains data/save.json; additional careers are stored in data/slots/. Switching saves automatically saves your current career.</p>
+ <p class="muted">Default career uses data/save.json on desktop; other careers use data/slots/. Browser saves are kept in this browser. You may delete any career. Deleting the default resets it to a new blank league; deleting the active secondary career returns you to the default.</p>
  <div class="table-wrap"><table class="data-table"><thead><tr><th>Career</th><th>Season</th><th>Phase</th><th>Actions</th></tr></thead><tbody>
- ${saveSlots.map(slot=>`<tr><td class="team-name">${esc(slot.name)} ${slot.active?'(Active)':''}${slot.invalid?' (Invalid)':''}</td><td>${slot.season||'-'}</td><td>${esc(slot.phase||'-')}</td><td>${!slot.active&&!slot.invalid?`<button class="button button-small" data-load-slot="${esc(slot.id)}">Load</button>`:''} ${slot.id!=='default'&&!slot.active?`<button class="button button-small button-danger" data-delete-slot="${esc(slot.id)}">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="4">No careers found yet.</td></tr>'}
+ ${saveSlots.map(slot=>`<tr><td class="team-name">${esc(slot.name)} ${slot.active?'(Active)':''}${slot.invalid?' (Invalid)':''}</td><td>${slot.season||'-'}</td><td>${esc(slot.phase||'-')}</td><td>${!slot.active&&!slot.invalid?`<button class="button button-small" data-load-slot="${esc(slot.id)}">Load</button>`:''} <button class="button button-small button-danger" data-delete-career="${esc(slot.id)}">Delete</button></td></tr>`).join('')||'<tr><td colspan="4">No careers found yet.</td></tr>'}
  </tbody></table></div>
  <div class="form-row"><label class="field-label">New Career Name<input id="slot-new-name" class="form-select" maxlength="48" placeholder="My new franchise"></label><label class="field-label">Random Seed<input id="slot-new-seed" class="form-select" type="number" value="2026"></label></div>
  <button class="button button-primary" data-create-slot>Create New Career</button>
@@ -355,7 +391,7 @@ function customizationCenter(){
  </section>`;
 }
 async function refreshSlots(){try{const r=await fetch('/api/slots');const x=await r.json();if(!r.ok)throw Error(x.error||'Could not list saves');saveSlots=x;if(tab==='customize'||tab==='career')render();}catch(e){notification(e.message,true);}}
-function afterCareerSwitch(newData){data=newData;teamId=data.teams.some(t=>t.id===teamId)?teamId:'T01';selectedGame=null;tradeTarget=null;directoryCache=null;activeProfile=null;render();refreshSlots();}
+function afterCareerSwitch(newData){data=newData;teamId=data.coachCareer?.teamId||data.teamId||'T01';selectedGame=null;tradeTarget=null;directoryCache=null;activeProfile=null;render();refreshSlots();}
 
 function weeklyGamePlan(){
  const t=data.team, next=data.schedule.find(g=>g.status==='scheduled'),rival=next?teamBy(next.home===teamId?next.away:next.home):null;
@@ -433,7 +469,7 @@ function playerPage(){const p=activeProfile;if(!p)return `${heading('Player Prof
  <div class="detail-list"><div>Current team <strong>${esc(p.teamName)}</strong></div><div>Roster status <strong>${esc(p.status)}</strong></div><div>Annual base salary <strong>${p.contract?money(p.contract.baseSalary):'Unsigned'}</strong></div><div>Contract expires <strong>${p.contract?.expiresYear??'N/A'}</strong></div><div>Signing bonus <strong>${p.contract?money(p.contract.signingBonus):'N/A'}</strong></div><div>Work ethic <strong>${p.workEthic??'Unreported'}</strong></div><div>Last progression <strong>${p.lastSeasonChange??'N/A'}</strong></div></div></section>${statLine('Career Postseason (current year)',p.postseason)}</div></div>`;
 }
 function careerHub(){return `${heading('Career Manager','Save and switch between independent franchise careers.',`${saveSlots.length} SLOTS`)}
- <section class="panel"><h3 class="panel-title">Your Careers <span class="panel-kicker">AUTO SAVED</span></h3><div class="career-grid">${saveSlots.map(s=>`<article class="career-card ${s.active?'career-active':''}"><div class="split"><strong>${esc(s.name)}</strong>${s.active?'<span class="tag win">ACTIVE</span>':''}</div><p class="muted">${esc(s.teamName||'Franchise')} · ${s.season||'-'} · ${esc(phaseName(s.phase||'unknown'))} Week ${s.week||'-'}</p><p class="muted">${esc(s.id)}</p><div class="career-actions"><button class="button button-small" data-load-slot="${esc(s.id)}" ${s.active?'disabled':''}>Load</button><button class="button button-small" data-rename-slot="${esc(s.id)}">Rename</button><button class="button button-small" data-duplicate-slot="${esc(s.id)}">Duplicate</button>${!s.active&&s.id!=='default'?`<button class="button button-small button-danger" data-delete-slot="${esc(s.id)}">Delete</button>`:''}</div></article>`).join('')||'<div class="muted">No saves yet</div>'}</div></section>
+ <section class="panel"><h3 class="panel-title">Your Careers <span class="panel-kicker">AUTO SAVED</span></h3><p class="muted">Delete any career, including the active one. Deletion requires typing DELETE and cannot be undone. Export a backup first if needed.</p><div class="career-grid">${saveSlots.map(s=>`<article class="career-card ${s.active?'career-active':''}"><div class="split"><strong>${esc(s.name)}</strong>${s.active?'<span class="tag win">ACTIVE</span>':''}</div><p class="muted">${esc(s.teamName||'Franchise')} · ${s.season||'-'} · ${esc(phaseName(s.phase||'unknown'))} Week ${s.week||'-'}</p><p class="muted">${esc(s.id)}</p><div class="career-actions"><button class="button button-small" data-load-slot="${esc(s.id)}" ${s.active?'disabled':''}>Load</button><button class="button button-small" data-rename-slot="${esc(s.id)}">Rename</button><button class="button button-small" data-duplicate-slot="${esc(s.id)}">Duplicate</button><button class="button button-small button-danger" data-delete-career="${esc(s.id)}">Delete</button></div></article>`).join('')||'<div class="muted">No saves yet</div>'}</div></section>
  <section class="panel"><h3 class="panel-title">New Career</h3><div class="form-row"><label>Career name<input class="form-select" id="slot-new-name" maxlength="48" placeholder="New franchise"></label><label>Seed<input class="form-select" type="number" id="slot-new-seed" value="2026"></label></div><button class="button button-primary" data-create-slot>Create & Switch</button></section>
  <section class="panel"><h3 class="panel-title">Portable Backups</h3><p class="muted">Download the active career before a major change or importing another save.</p><a href="/api/export" download="pro-football-dynasty-career.json" class="button">Export Active Career (JSON)</a> <button class="button" data-open-customization>League Templates & Import Options</button></section>`;}
 function franchiseDashboard(){const t=data.team;const upcomingGame=data.schedule.find(g=>g.status==='scheduled');const expiring=t.roster.filter(p=>(p.contract?.expiresYear??9999)<=data.season).sort((a,b)=>b.rating-a.rating);
@@ -451,29 +487,38 @@ function franchiseDashboard(){const t=data.team;const upcomingGame=data.schedule
 const VIEWS={customize:customizationCenter,weeklyprep:weeklyGamePlan,career:careerHub,dashboard:franchiseDashboard,directory,profile:playerPage,overview,camp:campCenter,standings,schedule,roster,freeagency,finance:financeOffice,reserves:reserveCenter,tradecenter:tradeCenter,coaching,depth,scouting,playoffs,draft,gamecenter:gameCenter,statistics:seasonStatistics,legacy:legacyCenter};
 function render(){
   if(!data)return;
+  teamId=data.coachCareer?.teamId||data.coachCareer?.lastTeamId||data.teamId||'T01';
   if(!data.teams.some(t=>t.id===teamId))teamId='T01';
+  teamSelect.disabled=!data.coachCareer||data.coachCareer.status!=='active'||Boolean(data.coachCareer.locked);
+  teamSelect.title=teamSelect.disabled?'Your franchise is locked until you resign or are fired':'You can change teams until your first simulation';
   teamSelect.innerHTML=data.teams.map(t=>`<option value="${t.id}" ${t.id===teamId?'selected':''}>${esc(t.name)}</option>`).join('');
   const isOff=data.phase==='offseason';
   const off=data.offseason;
   advance.textContent=isOff?(!off?'Open Offseason →':off.stage==='freeAgency'?'Begin Draft →':off.stage==='draft'?'Simulate CPU Picks →':'Start Training Camp →'):data.phase==='trainingCamp'?`Run Camp Session ${data.camp.session+1}/${data.camp.totalSessions} →`:data.phase==='preseason'?`Simulate Preseason Week ${data.week} →`:data.phase==='cutdown'?'Finalize 53-Man Roster →':data.phase==='playoffs'?`Advance Playoffs (${data.round}/4) →`:`Simulate Week ${data.week} →`;
-  advance.disabled=busy||(isOff&&off?.stage==='draft'&&off.onClock?.ownerId===off.managedTeamId);
+  advance.disabled=busy||data.coachCareer?.status!=='active'||(isOff&&off?.stage==='draft'&&off.onClock?.ownerId===off.managedTeamId);
   document.querySelectorAll('[data-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));
   document.querySelector('#header-tab').textContent=tab.toUpperCase();
-  el.innerHTML=VIEWS[tab]();
+  const c=data.coachCareer;
+  const managerBar=c?.status==='active'?`<div class="manager-status"><div><strong>${esc(c.name)}</strong> <span class="muted"> · ${esc(data.team.name)} · ${c.locked?'Franchise locked':'Changes allowed until first simulation'}</span></div><button class="button button-small" data-coach-resign>Resign as Manager</button></div>`:'';
+  el.innerHTML=managerBar+VIEWS[tab]();
+  syncCareerModal();
 }
-teamSelect.addEventListener('change',()=>{teamId=teamSelect.value;tradeTarget=null;tradePartnerId=data.teams.find(t=>t.id!==teamId).id;localStorage.setItem('pfd-team',teamId);selectedGame=null;async function loadTradeTarget(){
-  if(!data)return;
-  if(!data.teams.some(t=>t.id===tradePartnerId&&t.id!==teamId))tradePartnerId=data.teams.find(t=>t.id!==teamId).id;
-  try{const r=await fetch('/api/trade-target?id='+encodeURIComponent(tradePartnerId));const target=await r.json();if(!r.ok)throw Error(target.error||'Could not load partner');tradeTarget=target;if(tab==='tradecenter')render();}
-  catch(e){notification(e.message,true);}
-}
-refresh().catch(e=>notification(e.message,true));});
+teamSelect.addEventListener('change',async()=>{
+  const career=data?.coachCareer;
+  if(!career||career.status!=='active'||career.locked){teamSelect.value=teamId;notification('You cannot change franchises while under contract.',true);return;}
+  try{data=await api('coachSelect',{name:career.name,franchiseId:teamSelect.value});teamId=data.coachCareer.teamId;tradeTarget=null;selectedGame=null;render();}
+  catch(error){teamSelect.value=teamId;notification(error.message,true);}
+});
 document.querySelector('#navigation').addEventListener('click',e=>{const btn=e.target.closest('[data-tab]');if(!btn)return;tab=btn.dataset.tab;render();if(tab==='tradecenter')loadTradeTarget();if(tab==='customize'||tab==='career')refreshSlots();if(tab==='directory')openDirectory();if(tab==='gamecenter'&&!selectedGame){const latest=[...data.playoffs,...data.schedule,...(data.preseasonSchedule||[])].filter(g=>g.status==='final').at(-1);if(latest)loadGame(latest.id);}});
 advance.addEventListener('click',()=>{if(data.phase==='cutdown')return action('finalizeCutdown');if(data.phase!=='offseason')return action('advance');const stage=data.offseason?.stage;return action(!stage?'openOffseason':stage==='freeAgency'?'beginDraft':stage==='draft'?'draftAdvance':'nextSeason');});
 el.addEventListener('click',async e=>{
+  if(e.target.closest('[data-coach-resign]')){
+    if(!confirm('Resign as manager? You will leave your current franchise and must choose a new team before continuing.'))return;
+    await action('coachResign');return;
+  }
   const playerBtn=e.target.closest('[data-player]');if(playerBtn){await openPlayer(playerBtn.dataset.player);return;}
   if(e.target.closest('[data-profile-back]')){tab=profileReturn;render();if(tab==='directory')openDirectory();return;}
-  const playerTeam=e.target.closest('[data-player-team]');if(playerTeam&&playerTeam.dataset.playerTeam){teamId=playerTeam.dataset.playerTeam;await refresh();tab='roster';render();return;}
+  const playerTeam=e.target.closest('[data-player-team]');if(playerTeam&&playerTeam.dataset.playerTeam){notification('You may view other players, but can only manage your assigned team.');return;}
   const jump=e.target.closest('[data-jump]');if(jump){tab=jump.dataset.jump;render();return;}
   const sorting=e.target.closest('[data-directory-sort]');if(sorting){
     const key=sorting.dataset.directorySort;directoryDescending=directorySort===key?!directoryDescending:!['name','teamName','position'].includes(key);directorySort=key;directoryPage=0;render();return;}
@@ -513,9 +558,26 @@ el.addEventListener('click',async e=>{
     if(!confirm('Save your active career and switch to the selected career?'))return;
     try{afterCareerSwitch(await api('slotsLoad',{slotId:loadSlot.dataset.loadSlot}));notification('Career loaded');}catch(err){notification(err.message,true);}return;
   }
-  const deleteSlot=e.target.closest('[data-delete-slot]');if(deleteSlot){
-    if(!confirm('Permanently delete this inactive career? This cannot be undone.'))return;
-    try{saveSlots=await api('slotsDelete',{slotId:deleteSlot.dataset.deleteSlot});render();notification('Career deleted');}catch(err){notification(err.message,true);}return;
+  const deleteCareer=e.target.closest('[data-delete-career]');if(deleteCareer){
+    if(busy)return;
+    const slot=saveSlots.find(s=>s.id===deleteCareer.dataset.deleteCareer);
+    if(!slot)return notification('Career not found. Refresh your saves.',true);
+    const warning=slot.id==='default'
+      ?'This resets the default career to a brand-new league.'
+      :slot.active?'The game will switch to the default career.':'Other careers will not be affected.';
+    if(!confirm(`Permanently delete "${slot.name}"?\n\n${warning}\nThis cannot be undone. Export a backup first if you want to keep it.`))return;
+    if(prompt(`To permanently delete "${slot.name}", type DELETE:`)!=='DELETE')return notification('Career deletion canceled');
+    busy=true;
+    try {
+      const result=await api('slotsDeleteCareer',{slotId:slot.id,confirmation:'DELETE'});
+      saveSlots=result.slots;
+      // A deleted active career must not keep its old franchise and screen.
+      if(slot.active){tab='career';afterCareerSwitch(result.state);}
+      else {data=result.state;render();}
+      notification('Career deleted');
+    }catch(err){notification(err.message,true);}
+    finally{busy=false;}
+    return;
   }
   if(e.target.closest('[data-import-league-template]')){
     const file=document.querySelector('#league-template-file')?.files?.[0];

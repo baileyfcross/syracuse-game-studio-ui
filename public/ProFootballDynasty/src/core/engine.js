@@ -19,6 +19,7 @@ import { initializeStatistics, registerGameStatistics, leaders, teamSeasonStatis
 import { ensureLegacy, recordLegacyGame, archiveSeason, recordRetirement, processHallOfFame, reportDraftClass, legacySummary } from './legacy.js';
 import {initializeCustomization} from './customization.js';
 import {finalizeSeasonHonors} from './honors.js';
+import {ensureCoachCareer} from './career.js';
 export function createLeague(seed=2026){
   const teams=createTeams(seed);
   populateRosters(teams,2026,seed);
@@ -32,7 +33,7 @@ export function createLeague(seed=2026){
   initializeScouting(state);
   initializeStatistics(state);
   ensureDraftPicks(state);
-  ensureLegacy(state);initializeCustomization(state);state.honorsHistory=[];
+  ensureLegacy(state);initializeCustomization(state);ensureCoachCareer(state);state.honorsHistory=[];
   state.statisticsPartial=false;
   return state;
 }
@@ -47,7 +48,7 @@ export function upgradeLeague(state){
   ensureDraftPicks(state);
   state.negotiationHistory??=[];state.unsignedRookies??=[];
   state.managedTeamId??='T01';state.preseasonGames??=[];
-  ensureLegacy(state,{migration:state.version<9});initializeCustomization(state);state.honorsHistory??=[];state.version=10;return state;
+  ensureLegacy(state,{migration:state.version<9});initializeCustomization(state);ensureCoachCareer(state,{migration:true});state.honorsHistory??=[];state.version=10;return state;
 }
 const byId=(state,id)=>{const t=state.teams.find(t=>t.id===id);if(!t)throw Error(`Unknown team ${id}`);return t;};
 const compactGame=g=>({id:g.id,year:g.year,season:g.season,week:g.week,home:g.home,away:g.away,
@@ -66,12 +67,13 @@ export function tradeTargetSummary(state,teamId){
     picks:state.draftPicks.filter(p=>p.ownerId===teamId)};
 }
 export function stateSummary(state,selectedTeamId='T01'){
-  const team=byId(state,selectedTeamId);
+  const displayedId=state.coachCareer?.teamId||state.coachCareer?.lastTeamId||selectedTeamId;
+  const team=byId(state,displayedId);
   const financialYear=state.offseason?.year??state.season;
   const offseason=state.offseason?{...state.offseason,board:undefined,
     onClock:currentPick(state),completed:state.offseason.picks?.length||0,
     total:state.offseason.board?.length||224,recent:(state.offseason.picks||[]).slice(-12).reverse()}:null;
-  return {settings:state.settings,honorsHistory:(state.honorsHistory||[]).slice(-5).reverse(),customizationLog:state.customizationLog.slice(-12).reverse(),offseason,lastNegotiation:state.lastNegotiation||null,lastTradeDecision:state.lastTradeDecision||null,
+  return {coachCareer:state.coachCareer,settings:state.settings,honorsHistory:(state.honorsHistory||[]).slice(-5).reverse(),customizationLog:state.customizationLog.slice(-12).reverse(),offseason,lastNegotiation:state.lastNegotiation||null,lastTradeDecision:state.lastTradeDecision||null,
     financialYear,season:state.season,phase:state.phase,week:state.week,round:state.round,
     camp:campSummary(state,team.id),preseasonSchedule:(state.preseasonGames||[]).filter(g=>g.home===team.id||g.away===team.id).map(compactGame),
     management:staffSummary(state,team.id),development:developmentSummary(team),managedTeamId:state.managedTeamId,
