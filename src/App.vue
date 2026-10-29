@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { site } from './site'
+import SimGamesDropdown from './components/SimGamesDropdown.vue'
 
 const menuOpen = ref(false)
 const features = [
@@ -65,8 +66,8 @@ onBeforeUnmount(() => {
           <a href="#experience" @click="closeMenu">THE EXPERIENCE</a>
           <a href="#studio" @click="closeMenu">OUR STUDIO</a>
           <a href="/AstralRuinShortStory" @click="closeMenu">SHORT STORY</a>
+          <SimGamesDropdown @navigate="closeMenu" />
           <a href="#updates" class="nav-special" @click="closeMenu">DEVELOPMENT <span aria-hidden="true">↗</span></a>
-          <a href="/ProFootballDynasty/index.html" class="nav-special" @click="closeMenu">PRO FOOTBALL DYNASTY <span aria-hidden="true">↗</span></a>
         </nav>
       </div>
     </header>
@@ -249,6 +250,32 @@ onBeforeUnmount(() => {
               </span>
             </div>
 
+            <div class="updates-panel-right">
+              <div class="signal-ring signal-ring-one"></div>
+              <div class="signal-ring signal-ring-two"></div>
+              <div class="signal-ring signal-ring-three"></div>
+              <div class="signal-core">✦</div>
+            </div>
+          </a>
+          <br>
+          <a href="/ProBasketballDynasty/index.html" class="updates-panel game-link"
+            aria-label="Play Pro Basketball Dynasty in your browser">
+            <div class="updates-panel-left">
+              <span class="updates-kicker">FIELD NOTES / 002</span>
+
+              <h3>Pro Basketball Dynasty.</h3>
+
+              <p>
+                Take control of a professional basketball franchise.
+                Manage your roster, draft players, negotiate contracts,
+                and build a championship-winning team.
+              </p>
+
+              <span class="updates-coming">
+                PLAY IN YOUR BROWSER
+                <span aria-hidden="true">↗</span>
+              </span>
+            </div>
             <div class="updates-panel-right">
               <div class="signal-ring signal-ring-one"></div>
               <div class="signal-ring signal-ring-two"></div>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import SimGamesDropdown from './SimGamesDropdown.vue'
 
 const menuOpen = ref(false)
 const isStoryPage = typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/AstralRuinShortStory'
@@ -32,8 +33,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         <a href="/#experience" @click="closeMenu">THE EXPERIENCE</a>
         <a href="/#studio" @click="closeMenu">OUR STUDIO</a>
         <a href="/AstralRuinShortStory" class="nav-story" :aria-current="isStoryPage ? 'page' : undefined" @click="closeMenu">SHORT STORY <span aria-hidden="true">↗</span></a>
+        <SimGamesDropdown @navigate="closeMenu" />
         <a href="/#updates" class="nav-special" @click="closeMenu">DEVELOPMENT <span aria-hidden="true">↗</span></a>
-        <a href="/ProFootballDynasty/index.html" class="nav-special" @click="closeMenu">PRO FOOTBALL DYNASTY <span aria-hidden="true">↗</span></a>
       </nav>
     </div>
   </header>
