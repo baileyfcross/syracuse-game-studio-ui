@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { site } from './site'
+import SimGamesDropdown from './components/SimGamesDropdown.vue'
 
 const menuOpen = ref(false)
 const features = [
@@ -65,8 +66,8 @@ onBeforeUnmount(() => {
           <a href="#experience" @click="closeMenu">THE EXPERIENCE</a>
           <a href="#studio" @click="closeMenu">OUR STUDIO</a>
           <a href="/AstralRuinShortStory" @click="closeMenu">SHORT STORY</a>
+          <SimGamesDropdown @navigate="closeMenu" />
           <a href="#updates" class="nav-special" @click="closeMenu">DEVELOPMENT <span aria-hidden="true">↗</span></a>
-          <a href="/ProFootballDynasty/index.html" class="nav-special" @click="closeMenu">PRO FOOTBALL DYNASTY <span aria-hidden="true">↗</span></a>
         </nav>
       </div>
     </header>
