@@ -256,6 +256,32 @@ onBeforeUnmount(() => {
               <div class="signal-core">✦</div>
             </div>
           </a>
+          <br>
+          <a href="/ProBasketballDynasty/index.html" class="updates-panel game-link"
+            aria-label="Play Pro Basketball Dynasty in your browser">
+            <div class="updates-panel-left">
+              <span class="updates-kicker">FIELD NOTES / 002</span>
+
+              <h3>Pro Basketball Dynasty.</h3>
+
+              <p>
+                Take control of a professional basketball franchise.
+                Manage your roster, draft players, negotiate contracts,
+                and build a championship-winning team.
+              </p>
+
+              <span class="updates-coming">
+                PLAY IN YOUR BROWSER
+                <span aria-hidden="true">↗</span>
+              </span>
+            </div>
+            <div class="updates-panel-right">
+              <div class="signal-ring signal-ring-one"></div>
+              <div class="signal-ring signal-ring-two"></div>
+              <div class="signal-ring signal-ring-three"></div>
+              <div class="signal-core">✦</div>
+            </div>
+          </a>
           <div v-if="site.steamUrl || site.discordUrl || site.youtubeUrl || site.contactEmail" class="connect-row">
             <span>CONNECT WITH US</span>
             <div><a v-if="site.steamUrl" :href="site.steamUrl" target="_blank" rel="noopener noreferrer">STEAM ↗</a><a
