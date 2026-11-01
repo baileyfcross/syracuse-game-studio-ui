@@ -2,6 +2,8 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { site } from './site'
 import SimGamesDropdown from './components/SimGamesDropdown.vue'
+import SiteFooter from './components/SiteFooter.vue'
+import SiteHeader from './components/SiteHeader.vue'
 
 const menuOpen = ref(false)
 const features = [
@@ -45,32 +47,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="site-shell">
     <a class="skip-link" href="#main">Skip to content</a>
-    <header class="site-header">
-      <div class="header-inner container">
-        <a class="brand" href="#top" aria-label="SyracuseGameStudio home" @click="closeMenu">
-          <svg class="brand-mark" viewBox="0 0 48 48" role="presentation" aria-hidden="true">
-            <path d="M24 2 46 24 24 46 2 24Z" fill="none" stroke="currentColor" stroke-width="1.5" />
-            <path d="M24 9 39 24 24 39 9 24Z" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".65" />
-            <path d="M24 16 32 24 24 32 16 24Z" fill="currentColor" />
-          </svg>
-          <span class="brand-name">SYRACUSE<span>GAME</span>STUDIO<span class="brand-period">.</span></span>
-        </a>
-
-        <button class="menu-toggle" type="button" :aria-expanded="menuOpen" aria-controls="primary-navigation"
-          :aria-label="menuOpen ? 'Close navigation' : 'Open navigation'" @click="toggleMenu">
-          <span></span><span></span><span></span>
-        </button>
-
-        <nav id="primary-navigation" class="site-nav" :class="{ 'is-open': menuOpen }" aria-label="Main navigation">
-          <a href="#game" @click="closeMenu">THE GAME</a>
-          <a href="#experience" @click="closeMenu">THE EXPERIENCE</a>
-          <a href="#studio" @click="closeMenu">OUR STUDIO</a>
-          <a href="/AstralRuinShortStory" @click="closeMenu">SHORT STORY</a>
-          <SimGamesDropdown @navigate="closeMenu" />
-          <a href="#updates" class="nav-special" @click="closeMenu">DEVELOPMENT <span aria-hidden="true">↗</span></a>
-        </nav>
-      </div>
-    </header>
+    <SiteHeader :menu-open="menuOpen" @close-menu="closeMenu" @toggle-menu="toggleMenu" />
 
     <main id="main">
       <section id="top" class="hero">
@@ -294,10 +271,6 @@ onBeforeUnmount(() => {
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="container footer-inner"><a href="#top" class="footer-brand">SYRACUSE<span>GAME</span>STUDIO<span
-            class="brand-period">.</span></a><span>© {{ year }} SYRACUSEGAMESTUDIO. ALL RIGHTS RESERVED.</span><a
-          href="#top" class="back-top">BACK TO TOP ↑</a></div>
-    </footer>
+    <SiteFooter />
   </div>
 </template>
